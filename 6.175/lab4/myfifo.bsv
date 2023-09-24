@@ -11,9 +11,37 @@ interface Fifo#(numeric type n, type t);
     method t first;
 endinterface
 
+
 //=============================================================================================================
 //练习1：
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 module mkMyConflictFifo(Fifo#(n, t)) //n is size of fifo, t is data type of fifo
     provisos (Bits#(t,tSz));    
     Vector#(n, Reg#(t))     data     <- replicateM(mkRegU());
@@ -62,10 +90,12 @@ module mkMyConflictFifo(Fifo#(n, t)) //n is size of fifo, t is data type of fifo
         notEmpty <= False;
         notFull <= True;
     endmethod
-endmodule
+endmodule */
 
 //=============================================================================================================
 //练习2：
+
+/*
 typedef Vector#(n, Reg#(t)) Ehr#(numeric type n, type t);
 
 // {notEmpty, first, deq} < {notFull, enq} < clear
@@ -169,12 +199,13 @@ module mkMyBypassFifo( Fifo#(n, t) ) // n is size of fifo, t is data type of fif
         notEmpty[2] <= False;
         notFull[2] <= True;
     endmethod
-endmodule
+endmodule */
 
 
 //=============================================================================================================
 //练习3 4：
 
+/*
 // {notFull, enq, notEmpty, first, deq} < clear
 module mkMyCFFifo( Fifo#(n, t) ) // n is size of fifo, t is data type of fifo
     provisos (Bits#(t,tSz));
