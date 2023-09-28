@@ -1,9 +1,11 @@
 module top 
 (
-    input wire      sys_clk   ,
-    input wire [2:0] data_in   ,
-    input wire      valid_in  ,
-    input wire      ready_in  
+    input wire        sys_clk   ,
+    input wire        rst_n     ,
+    input wire        valid_in  ,
+    input wire        ready_in  ,
+
+    output wire [2:0] result
 );
 
 wire ready;
@@ -18,15 +20,16 @@ slave inst_slave
     .valid    (valid),
     .ready_in (ready_in),
 
-    .ready    (ready)
+    .ready    (ready),
+    .result   (result)
 );
 
 
 master inst_master
 (
     .sys_clk (sys_clk),
+    .rst_n   (rst_n)  ,
     .valid_in(valid_in),
-    .data_in (data_in),
     .ready   (ready),
 
     .valid   (valid),

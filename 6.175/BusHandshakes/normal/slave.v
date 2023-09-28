@@ -1,20 +1,15 @@
 module slave
 (
-    input wire      sys_clk  ,
-    input wire [2:0] data     ,
-    input wire      valid    ,
-    input wire      ready_in ,
+    input wire          sys_clk  ,
+    input wire [2:0]    data     ,
+    input wire          valid    ,
+    input wire          ready_in ,
 
-    output wire     ready
+    output wire         ready    ,
+    output wire [2:0]   result
 );
 
-reg [7:0] result;
-
-always @(posedge sys_clk) 
-    if(valid && ready_in)
-        result <= data;
-    else 
-        result <= 'b0;
+assign result = (valid && ready_in) ? data : 3'd0;
 
 assign ready = ready_in;
 
