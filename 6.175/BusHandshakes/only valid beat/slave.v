@@ -36,7 +36,7 @@ assign ready_up = ready_in || ~valid_down;
 
 
 
-assign result = (valid_down && ready_in) ? data_down : 3'b0;
+assign result = (valid_down && ready_in) ? data_down : 3'bz;
 
 assign ready_down = ready_up;
 

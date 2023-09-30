@@ -2,7 +2,6 @@
 module tb_top();
 
 reg        sys_clk;
-reg        rst_n;
 reg        valid_in;
 reg        ready_in;
 wire [2:0] result;
@@ -11,33 +10,37 @@ wire [2:0] result;
 
 always #10 sys_clk = ~sys_clk; //生成50MHZ 20ns的时钟信号
 
+
 initial begin
     sys_clk = 1'b1;
-    rst_n <= 1'b0;
-    #20
-    rst_n <= 1'b1; 
 end
+
 
 initial begin
     valid_in <= 1'b0;
-    ready_in <= 1'b0;
-    #20
+    #60
     valid_in <= 1'b1;
-    ready_in <= 1'b1;
-    #100
+    #80
     valid_in <= 1'b0;
-    ready_in <= 1'b0;
 end
 
+initial begin
+    ready_in <= 1'b1;
+    #60
+    ready_in <= 1'b0;
+    #20
+    ready_in <= 1'b1;    
+end
 
 top inst_top
 (
-    .sys_clk   (sys_clk),
-    .rst_n     (rst_n ),
-    .valid_in  (valid_in),
-    .ready_in  (ready_in),
+    .sys_clk (sys_clk),
+    .valid_in(valid_in),
+    .ready_in(ready_in),
 
-    .result    (result)
+    .result  (result)
 );
+
+
 
 endmodule
