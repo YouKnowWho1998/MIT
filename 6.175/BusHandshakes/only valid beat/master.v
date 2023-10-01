@@ -1,7 +1,6 @@
 module master 
 (
     input wire        sys_clk ,
-    input wire        rst_n   ,
     input wire        valid_in,
     input wire        ready_up,
 
@@ -16,6 +15,7 @@ assign {data_test[0], data_test[1], data_test[2]} = {3'b111, 3'b101, 3'b110};
 
 
 
+//data_cnt
 always@(posedge sys_clk) begin
     if(!valid_in)
         data_cnt <= 'd0;

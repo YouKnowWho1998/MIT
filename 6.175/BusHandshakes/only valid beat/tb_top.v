@@ -11,13 +11,12 @@ wire [2:0] result;
 
 always #10 sys_clk = ~sys_clk; //生成50MHZ 20ns的时钟信号
 
-
 initial begin
     sys_clk = 1'b1;
     rst_n <= 1'b0;
     #20
-    rst_n <= 1'b1; 
-end
+    rst_n <= 1'b1; end//初始化clk和rst_n
+
 
 initial begin
     valid_in <= 1'b0;
