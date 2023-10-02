@@ -3,7 +3,6 @@ module tb_top();
 
 reg sys_clk;
 reg rst_n;
-reg valid_in;
 reg ready_in;
 wire [2:0] result;
 
@@ -18,13 +17,6 @@ initial begin
     rst_n <= 1'b1; end//初始化clk和rst_n
 
 
-initial begin
-    valid_in <= 1'b0;
-    #40
-    valid_in <= 1'b1;
-    #120
-    valid_in <= 1'b0;
-end
 
 initial begin
     ready_in <= 1'b0;
@@ -47,7 +39,6 @@ top inst_top
 (
     .sys_clk (sys_clk),
     .rst_n   (rst_n),
-    .valid_in(valid_in),
     .ready_in(ready_in),
 
     .result  (result)

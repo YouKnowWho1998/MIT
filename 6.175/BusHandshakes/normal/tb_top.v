@@ -2,7 +2,6 @@
 module tb_top();
 
 reg        sys_clk;
-reg        valid_in;
 reg        ready_in;
 wire [2:0] result;
 
@@ -15,18 +14,15 @@ initial begin
 end
 
 initial begin
-    valid_in <= 1'b0;
-    #20
-    valid_in <= 1'b1;
-    #60
-    valid_in <= 1'b0;
+    ready_in <= 1'b1;
+    #100
+    ready_in <= 1'b0;
 end
 
 
 top inst_top
 (
     .sys_clk   (sys_clk),
-    .valid_in  (valid_in),
     .ready_in  (ready_in),
 
     .result    (result)
