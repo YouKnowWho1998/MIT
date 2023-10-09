@@ -59,13 +59,13 @@ module mkProc(Proc)
         end
 
         if(eInst.iType == Ld) begin
-            eInst.data <- dMem.req(MemReq{op:Ld,addr:eInst.addr,data:?});    
+            eInst.data <- dMem.req(MemReq{op:Ld, addr:eInst.addr, data:?});    
         end else if(eInst.iType == St) begin
-            let dummy <- dMem.req(MemReq{op:St,addr:eInst.addr,data:eInst.data});
+            let dummy <- dMem.req(MemReq{op:St, addr:eInst.addr, data:eInst.data});
         end
 
         if(isValid(eInst.dst)) begin
-            rf.wr(fromMaybe(?,eInst.dst),eInst.data);
+            rf.wr(fromMaybe(?, eInst.dst), eInst.data);
         end
 
         pc <= eInst.brTaken ? eInst.addr : pc+4;
