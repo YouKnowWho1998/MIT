@@ -11,6 +11,8 @@ import Vector::*;
 import Fifo::*;
 import Ehr::*;
 import GetPut::*;
+import Btb::*;
+
 
 typedef struct{ //解码-处理中间级数据结构体变量
     DecodedInst dInst;
@@ -26,6 +28,7 @@ module mkProc(Proc)
     IMemory      iMem  <- mkIMemory;
     DMemory      dMem  <- mkDMemory;
     CsrFile      csrf  <- mkCsrFile;
+    Btb          btb   <- mkBtb;
     Fifo#(2, Decode2Execute) d2e <- mkCFFifo; //例化指令-解码FIFO 容量为2是因为两级流水线 两个rule都是并行执行的
 
     Bool memReady = iMem.init.done() && dMem.init.done();
@@ -33,7 +36,7 @@ module mkProc(Proc)
     rule doFetchDecode(csrf.started);
         Decode2Execute dec2exe;
         Data inst = iMem.req(pc[0]);
-        let  ppc  = pc[0] + 4;
+        let  ppc  = btb.predPc(pc[0]);
         dec2exe.dInst = decode(inst);
         dec2exe.pc = pc[0];
         dec2exe.ppc = ppc;
@@ -85,8 +88,12 @@ module mkProc(Proc)
 
             d2e.clear();
             if(eInst.brTaken) begin
-                pc[1] <= eInst.addr;//EHR寄存器[1]端口优先级更高 如果预测错误 
-            end                     //将处理后的正确指令地址赋值给pc寄存器
+                btb.update(exe.pc, eInst.addr)//当预测错误并且是B型或J型指令时 调用update方法
+                pc[1] <= eInst.addr;          //其他情况仍是pc+4方法
+            end
+            else begin
+                pc[1] <= exe.pc + 4;
+            end                     
         end
     endrule
 
