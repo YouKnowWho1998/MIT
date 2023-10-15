@@ -44,11 +44,13 @@ module mkBht(Bht#(bhtIndex));
     function Bit#(2) newDpBits(Bit#(2) dpBits, Bool taken);
         if (taken) begin
             let newDp = dpBits + 1;
+            //发生跳转时如果是处于!stronglytaken状态则立刻跳转至stronglyTaken状态
             newDp = (newDp == minDp) ? maxDp : newDp;
             return newDp;            
         end
         else begin
             let newDp = dpBits - 1;
+            //不发生跳转时如果是处于stronglytaken状态则立刻跳转至!stronglyTaken状态
             newDp = (newDp == maxDp) ? minDp : newDp; 
             return newDp;                       
         end
@@ -67,5 +69,7 @@ module mkBht(Bht#(bhtIndex));
         let dpBits = getBhtEntry(pc);
         bhtArr[index] <= newDpBits(dpBits, taken);
     endmethod
+
+//==============================================================================================================
 
 endmodule
