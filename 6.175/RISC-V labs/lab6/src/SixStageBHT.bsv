@@ -14,24 +14,28 @@ import Btb::*;
 import GetPut::*;
 import FPGAMemory::*;
 import Scoreboard::*;
+import Bht::*;
+import FIFO::*;
+
 
 typedef struct{//取指->解码阶段传入的数据结构体类型
     Addr pc;
     Addr ppc;
-    Bool epoch;
+    Bool exeEpoch;
+    Bool decEpoch;
 } Fetch2Decode deriving(Bits, Eq);
 
 typedef struct{//解码->取出寄存器数据阶段传入的数据结构体类型
     Addr pc;
     Addr ppc;
-    Bool epoch;
+    Bool exeEpoch;
     DecodedInst dInst;
 } Decode2Register deriving(Bits, Eq);
 
 typedef struct{//从寄存器数据->处理阶段传入的数据结构体类型
     Addr pc;
     Addr ppc;
-    Bool epoch;
+    Bool exeEpoch;
     DecodedInst dInst;
     Data rVal1;
     Data rVal2;
@@ -43,7 +47,7 @@ typedef struct{//处理阶段->数据cache传入的数据结构体类型
     Maybe#(ExecInst) eInst;
 } Execute2Memory deriving(Bits, Eq);
 
-typedef struct{
+typedef struct{//内存->回写寄存器数据阶段数据结构体类型
     Addr pc;
     Maybe#(ExecInst) eInst;
 } Memory2WriteBack deriving(Bits, Eq);
@@ -53,26 +57,33 @@ typedef struct{//执行阶段指令重定向
     Addr nextPc;
 } ExecuteRedirect deriving(Bits, Eq);
 
+typedef struct{//解码阶段指令重定向
+    Addr nextPc;
+} DecodeRedirect deriving(Bits, Eq);
+
 //==================================================================================================
 
 (* synthesize *)
 module mkProc(Proc)
-    Ehr#(2, Addr) pc <- mkEhrU;
-    RFile         rf <- mkRFile;
-    Scoreboard    sb <- mkCFScoreboard;
-    FPGAMemory  iMem <- mkFPGAMemory;
-    FPGAMemory  dMem <- mkFPGAMemory;
-    CsrFile     csrf <- mkCsrFile;
-    Btb         btb  <- mkBtb;
+    Ehr#(2, Addr)      pc   <- mkEhrU;
+    RFile              rf   <- mkRFile;
+    Scoreboard#(10)    sb   <- mkCFScoreboard;
+    FPGAMemory         iMem <- mkFPGAMemory;
+    FPGAMemory         dMem <- mkFPGAMemory;
+    CsrFile            csrf <- mkCsrFile;
+    Btb#(6)            btb  <- mkBtb;
+    Bht#(8)            bht  <- mkBht;
 
-    Fifo#(2, Fetch2Decode)     f2dFifo  <- mkCFFifo;
-    Fifo#(2, Decode2Register)  d2rFifo  <- mkCFFifo;
-    Fifo#(2, Register2Execute) r2eFifo  <- mkCFFifo;
-    Fifo#(2, Execute2Memory)   e2mFifo  <- mkCFFifo;
-    Fifo#(2, Memory2WriteBack) m2wbFifo <- mkCFFifo;
+    FIFO#(Fetch2Decode)      f2dFifo  <- mkCFFifo;
+    FIFO#(Decode2Register)   d2rFifo  <- mkCFFifo;
+    FIFO#(Register2Execute)  r2eFifo  <- mkCFFifo;
+    FIFO#(Execute2Memory)    e2mFifo  <- mkCFFifo;
+    FIFO#(Memory2WriteBack)  m2wbFifo <- mkCFFifo;
 
     Reg#(Bool) execEpoch <- mkReg(False);
+    Reg#(Bool) decEpoch  <- mkReg(False);
     Ehr#(2, Maybe#(ExecuteRedirect)) execRedirect <- mkEhr(Invalid);
+    Ehr#(2, Maybe#(DecodeRedirect))  decRedirect  <- mkEhr(Invalid);
 
     Bool memReady = iMem.init.done() && dMem.init.done();
 
@@ -83,7 +94,8 @@ module mkProc(Proc)
         Fetch2Decode f2d = {
             pc : pc[0],
             ppc : ppc,
-            epoch : execEpoch,  
+            exeEpoch: execEpoch,
+            decEpoch: decEpoch
         };
         f2dFifo.enq(f2d);
         pc[0] <= ppc;
@@ -95,15 +107,32 @@ module mkProc(Proc)
         f2dFifo.deq;
 
         Data inst <- iMem.resp();//指令缓存回应请求 读出指令
-        DecodedInst dInst = decode(inst);
-        Decode2Register d2r = {
-            pc : f2d.pc,
-            ppc: f2d.ppc,
-            epoch : f2d.epoch,
-            dInst : dInst,
-        };
-        d2rFifo.enq(d2r);
-        $display("Fetch: PC = %x, inst = %x, expanded = ", f2d.pc, inst, showInst(inst));
+        Bool decodeEpochPass1 = (f2d.exeEpoch == execEpoch) ? True : False;
+        Bool decodeEpochPass2 = (f2d.decEpoch == decEpoch)  ? True : False;
+        //解码阶段检查2个Epoch寄存器的值是否一致，如果不一致不能解码此条指令
+        if ((decodeEpochPass1) && (decodeEpochPass2)) begin
+            DecodedInst dInst = decode(inst);
+            //如果解码指令后发现是分支指令 则需要调用Bht进行跳转预测(检验btb预测的指令是否正确)
+            if ((dInst.iType == J) || (dInst.iType == Br)) begin
+                let bhtPred = bht.predPc(f2d.pc, f2d.ppc);
+                //如果bht预测的跳转结果地址与btb预测的指令地址不符 则btb预测失败 进行指令重定向
+                //并将bht预测的跳转地址赋值给预测指令地址
+                if (bhtPred != f2d.ppc) begin
+                    decRedirect[0] <= tagged valid DecodeRedirect{nextPc : bhtPred};
+                    f2d.ppc = bhtPred;
+                end
+            end
+            Decode2Register d2r = {
+                pc : f2d.pc,
+                ppc : f2d.ppc,
+                exeEpoch : f2d.exeEpoch,
+                dInst : dInst
+            };
+            d2rFifo.enq(d2r);
+        end
+        else begin
+            $display("Killing wrong path in Decode");
+        end
     endrule
 //----------------------------------------------------------------------------------------------------
     rule doRegister(csrf.started)//读取寄存器数据阶段
@@ -124,7 +153,7 @@ module mkProc(Proc)
             Register2Execute r2e = {
                 pc : d2r.pc,
                 ppc : d2r.ppc,
-                epoch : d2r.epoch,
+                epoch : d2r.exeEpoch,
                 dInst : dInst,
                 rVal1 : rVal1,
                 rVal2 : rVal2,
@@ -138,9 +167,9 @@ module mkProc(Proc)
         end
     endrule
 //----------------------------------------------------------------------------------------------------
-    rule doExecute(csrf.started);//指令处理阶段
+    rule doExecute(csrf.started);//指令执行阶段
         let r2e = r2eFifo.first;
-        r2eFifo.deq;//指令被处理模块接收之后就立刻弹出销毁
+        r2eFifo.deq;//指令被执行模块接收之后就立刻弹出销毁
 
         //检测epoch状态是否上级下级一致 如果不一致则销毁此条指令
         //如果分支预测失败，将触发重定向规则销毁此条指令，改变epoch状态，这里将会立刻触发不一致 
@@ -174,6 +203,11 @@ module mkProc(Proc)
                 $display("Executed!");
                 $fflush(stdout);
             end
+
+            //如果指令执行后发现是条件跳转指令 则调用bht update方法进行更新
+            if (e.iType == Br) begin
+                bht.update(r2e.pc, e.brTaken);
+            end
         end
 
         Execute2Memory e2m = {
@@ -192,7 +226,13 @@ module mkProc(Proc)
             btb.update(r.pc, r.nextPc); //更新分支预测缓冲器
             $display("Fetch: Mispredict, redirected by Execute");
         end
+        else if (decRedirect[1] matches tagged Valid .r) begin
+            pc[1] <= r.nextPc;
+            decEpoch <= !decEpoch;
+            $display("Fetch: Mispredict, redirected by Decode");
+        end
         execRedirect <= Invalid;
+        decRedirect  <= Invalid;
     endrule
 //----------------------------------------------------------------------------------------------------
     rule doMemory(csrf.started); //数据内存阶段(根据指令 向内存读写数据)

@@ -36,8 +36,18 @@ module mkBht(Bht#(bhtIndex));
     function Bool extractDir(Bit#(2) dpBits);
         Bool stronglyTaken = (dpBits == 2'b11);
         Bool weaklyTaken   = (dpBits == 2'b10);
-        return (stronglyTaken || weaklyTaken);
+        if(stronglyTaken || weaklyTaken) begin
+            Bool Taken = True;
+        end
+        else begin
+            Bool Taken = False;
+        end
+        return Taken;
     endfunction
+
+    //computeTarget
+    //根据是否跳转选择目标PC的值
+    function Addr computeTarget(Addr pc, Addr targetPC, Bool taken) = taken ? targetPC : pc+4;
 
     //newDpBits
     //当发生跳转时 dpBits加1 不跳转-1 最高不能超过maxDp 最低不能超过minDp
