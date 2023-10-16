@@ -73,7 +73,7 @@ module mkBht(Bht#(bhtIndex));
         return computeTarget(pc, targetPC, direction);
     endmethod
 
-    //只有预测失败时 才调用update方法对饱和计数器进行更新
+    //每次执行阶段结束之后 则根据指令跳转结果 调用update方法对饱和计数器进行更新
     method Action update(Addr pc, Bool taken);
         let index  = getBhtIndex(pc);
         let dpBits = getBhtEntry(pc);

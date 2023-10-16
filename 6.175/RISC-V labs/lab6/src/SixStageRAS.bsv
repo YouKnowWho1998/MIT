@@ -16,6 +16,7 @@ import FPGAMemory::*;
 import Scoreboard::*;
 import Bht::*;
 import FIFO::*;
+import Ras::*;
 
 
 typedef struct{//取指->解码阶段传入的数据结构体类型
@@ -63,6 +64,22 @@ typedef struct{//解码阶段指令重定向
 
 //==================================================================================================
 
+function Bool isRdX1(Data inst); //call指令
+    let rd = inst[11:7];
+    Bool x = (rd == 5'b00001) ? True : False;
+    return x;
+endfunction
+
+function Bool isJalrReturn(Data inst); //Return指令
+    let rd = inst[11:7];
+    let rs1 = inst[19:15];
+    Bool x = ((rd == 5'b00000) && (rs1 == 5'b00001)) ? True : False;
+    return x;
+endfunction
+
+//==================================================================================================
+
+
 (* synthesize *)
 module mkProc(Proc)
     Ehr#(2, Addr)      pc   <- mkEhrU;
@@ -73,6 +90,7 @@ module mkProc(Proc)
     CsrFile            csrf <- mkCsrFile;
     Btb#(6)            btb  <- mkBtb;
     Bht#(8)            bht  <- mkBht;
+    Ras#(3)            ras  <- mkRas;
 
     FIFO#(Fetch2Decode)      f2dFifo  <- mkCFFifo;
     FIFO#(Decode2Register)   d2rFifo  <- mkCFFifo;
@@ -112,16 +130,34 @@ module mkProc(Proc)
         //解码阶段检查2个Epoch寄存器的值是否一致，如果不一致不能解码此条指令
         if ((decodeEpochPass1) && (decodeEpochPass2)) begin
             DecodedInst dInst = decode(inst);
-            //解码后如果发现是条件跳转指令 则还需调用Bht查阅历史表
-            //如果Bht返回的预测值与btb预测值不同 则以bht预测结果为主 进行指令重定向 
-            //再以bht预测结果地址重新取指令->解码
-            if ((dInst.iType == Br) || (dInst.iType == J)) begin
+            if (dInst.iType == Br) begin
                 let bhtPred = bht.predPc(f2d.pc, f2d.ppc);
                 if (bhtPred != f2d.ppc) begin
                     decRedirect[0] <= tagged valid DecodeRedirect{nextPc : bhtPred};
                     f2d.ppc = bhtPred;
                 end
             end
+            if (dInst.iType == J) begin
+                //如果检测到是call指令 则将call指令的下一条指令写入RAS中
+                if (isRdX1(inst)) begin
+                    ras.push(f2d.pc + 4);
+                end
+            end
+            if (dInst.iType == Jr) begin
+                if (isRdX1(inst)) begin
+                    ras.push(f2d.pc + 4);
+                end
+                //如果检测到是return指令 则将RAS的输出地址作为目标地址
+                //需要重定向指令
+                if (isJalrReturn(inst)) begin
+                    Addr x <- ras.pop();
+                    decRedirect[0] <= tagged valid DecodeRedirect{
+                        nextPc : x
+                    };
+                    f2d.ppc = x;
+                end
+            end
+
             Decode2Register d2r = {
                 pc : f2d.pc,
                 ppc : f2d.ppc,
