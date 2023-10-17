@@ -281,7 +281,7 @@ module mkProc(Proc)
                 dMem.rep(MemReq{op:Ld, addr:x.addr, data:?});
             end
             else if(x.iType == St) begin
-                let dummy <- dMem.rep(MemReq{op:St, addr:x.addr, data:x.addr});
+                let dummy <- dMem.rep(MemReq{op:St, addr:x.addr, data:x.data});
             end
         end
         else begin

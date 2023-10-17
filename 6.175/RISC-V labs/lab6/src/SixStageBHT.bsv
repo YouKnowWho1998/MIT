@@ -112,9 +112,8 @@ module mkProc(Proc)
         //解码阶段检查2个Epoch寄存器的值是否一致，如果不一致不能解码此条指令
         if ((decodeEpochPass1) && (decodeEpochPass2)) begin
             DecodedInst dInst = decode(inst);
-            //解码后如果发现是条件跳转指令 则还需调用Bht查阅历史表
-            //如果Bht返回的预测值与btb预测值不同 则以bht预测结果为主 进行指令重定向 
-            //再以bht预测结果地址重新取指令->解码
+            //解码后如果发现是跳转指令 则还需调用Bht查阅历史表
+            //如果没有查阅到对应的跳转地址(bhtPred != ppc) 则使用bht预测的地址进行指令重定向 
             if ((dInst.iType == Br) || (dInst.iType == J)) begin
                 let bhtPred = bht.predPc(f2d.pc, f2d.ppc);
                 if (bhtPred != f2d.ppc) begin
@@ -245,7 +244,7 @@ module mkProc(Proc)
                 dMem.rep(MemReq{op:Ld, addr:x.addr, data:?});
             end
             else if(x.iType == St) begin
-                let dummy <- dMem.rep(MemReq{op:St, addr:x.addr, data:x.addr});
+                let dummy <- dMem.rep(MemReq{op:St, addr:x.addr, data:x.data});
             end
         end
         else begin
