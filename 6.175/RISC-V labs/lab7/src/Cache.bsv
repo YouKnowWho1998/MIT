@@ -16,7 +16,7 @@ import MemTypes::*;
 // endinterface
 
 //===============================================================================================================
-module mkTranslator(WideMem mem, Cache ifc);//接收一些DDR3接口(例如WideMem),并返回一个cache接口
+module mkTranslator(WideMem mem, Cache ifc);//接收DDR3接口(例如WideMem类型),并返回一个cache接口
 
     //从PC地址中剥离出offset数 这个offset就是选择阵列中第几个word值输出
     function CacheWordSelect getOffset(Addr addr) = truncate(addr >> 2);

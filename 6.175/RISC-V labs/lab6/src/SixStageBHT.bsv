@@ -64,7 +64,7 @@ typedef struct{//解码阶段指令重定向
 //==================================================================================================
 
 (* synthesize *)
-module mkProc(Proc)
+module mkProc(Proc);
     Ehr#(2, Addr)      pc   <- mkEhrU;
     RFile              rf   <- mkRFile;
     Scoreboard#(10)    sb   <- mkCFScoreboard;

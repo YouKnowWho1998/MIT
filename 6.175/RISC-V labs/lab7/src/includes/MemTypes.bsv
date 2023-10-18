@@ -82,7 +82,7 @@ endinterface
 typedef 16 CacheLineWords; // to match DDR3 width
 typedef TMul#(CacheLineWords, 4) CacheLineBytes;
 typedef Vector#(CacheLineWords, Word) CacheLine;
-typedef Bit#( TLog#(CacheLineWords) ) CacheWordSelect;
+typedef Bit#(TLog#(CacheLineWords)) CacheWordSelect;
 typedef CacheLine WideMemResp;
 
 // Wide memory interface

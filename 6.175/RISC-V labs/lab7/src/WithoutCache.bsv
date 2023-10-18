@@ -17,6 +17,14 @@ import Scoreboard::*;
 import Bht::*;
 import FIFO::*;
 import Ras::*;
+import MemUtil::*;
+import Memory::*;
+import Cache::*;
+import FIFO::*;
+import SimMem::*;
+import CacheTypes::*;
+import MemInit::*;
+import ClientServer::*;
 
 
 typedef struct{//取指->解码阶段传入的数据结构体类型
@@ -62,7 +70,7 @@ typedef struct{//解码阶段指令重定向
     Addr nextPc;
 } DecodeRedirect deriving(Bits, Eq);
 
-//==================================================================================================
+//=========================================FUNCTION========================================================
 
 function Bool isRdX1(Data inst); //call指令
     let rd = inst[11:7];
@@ -77,11 +85,10 @@ function Bool isJalrReturn(Data inst); //Return指令
     return x;
 endfunction
 
-//==================================================================================================
-
+//=========================================PROCESSOR=========================================================
 
 (* synthesize *)
-module mkProc(Proc);
+module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)(Proc);
     Ehr#(2, Addr)      pc   <- mkEhrU;
     RFile              rf   <- mkRFile;
     Scoreboard#(10)    sb   <- mkCFScoreboard;
@@ -103,10 +110,30 @@ module mkProc(Proc);
     Ehr#(2, Maybe#(ExecuteRedirect)) execRedirect <- mkEhr(Invalid);
     Ehr#(2, Maybe#(DecodeRedirect))  decRedirect  <- mkEhr(Invalid);
 
-    Bool memReady = iMem.init.done() && dMem.init.done();
+    Bool memReady = True;
 
-//--------------------------------------------------------------------------------------------------
-    rule doFetch(csrf.started)//取指令阶段
+    // interface WideMem;
+    //     method Action req(WideMemReq r);
+    //     method ActionValue#(CacheLine) resp;
+    // endinterface
+
+    //真实的DDR3接口是ddr3ReqFifo和ddr3RespFifo,此模块将其例化为更友好的WideMem类型接口
+    WideMem wideMem <- mkWideMemFromDDR3(ddr3ReqFifo, ddr3RespFifo);
+
+    //调用此模块将单个DDR3内存接口(WideMem)拆分成两个，对应指令Cache和数据Cache部分
+    Vector#(2, WideMem) splitMem <- mkSplitWideMem(memReady && csrf.started, wideMem);
+
+    //将内存接口类型(WideMem)转化成Cache接口类型 对应指令Cache和数据Cache
+    Cache iMem <- mkTranslator(splitMem[0]);
+    Cache dMem <- mkTranslator(splitMem[1]);
+//-----------------------------------------------------------------------------------------------------------------
+    //为初始化时排空内存接收FIFO
+    rule drainMemResponses( !csrf.started );
+        $display("drain!");
+        ddr3RespFifo.deq;
+    endrule
+//----------------------------------------取指令阶段--------------------------------------------------------------
+    rule doFetch(csrf.started)
         iMem.req(MemReq{op:?, addr:pc[0], data:?});//向指令缓存发出读请求
         Addr ppc = btb.predPc(pc[0]);
         Fetch2Decode f2d = {
@@ -119,8 +146,8 @@ module mkProc(Proc);
         pc[0] <= ppc;
         $display("Request instruction: PC = %x, next PC = %x", pc[0], ppc);
     endrule
-//----------------------------------------------------------------------------------------------------
-    rule doDecode(csrf.started)//指令解码阶段
+//----------------------------------------指令解码阶段------------------------------------------------------------
+    rule doDecode(csrf.started)
         let f2d = f2dFifo.first;
         f2dFifo.deq;
 
@@ -170,8 +197,8 @@ module mkProc(Proc);
             $display("Killing wrong path in Decode");
         end
     endrule
-//----------------------------------------------------------------------------------------------------
-    rule doRegister(csrf.started)//读取寄存器数据阶段
+//---------------------------------------读取寄存器数据阶段-------------------------------------------------------------
+    rule doRegister(csrf.started)
         let d2r = d2rFifo.first;
         let dInst = d2r.dInst;
         //d2rFifo.deq; 这样写不对 要先查询scoreboard之后才能弹出d2rFifo数据 否则就要等待
@@ -202,8 +229,8 @@ module mkProc(Proc);
             $display("[Stalled] Read registers: PC = %x", d2r.pc);
         end
     endrule
-//----------------------------------------------------------------------------------------------------
-    rule doExecute(csrf.started);//指令执行阶段
+//-------------------------------------------指令执行阶段---------------------------------------------------------
+    rule doExecute(csrf.started);
         let r2e = r2eFifo.first;
         r2eFifo.deq;//指令被执行模块接收之后就立刻弹出销毁
 
@@ -252,10 +279,10 @@ module mkProc(Proc);
         };
         e2mFifo.enq(e2m);
     endrule
-//----------------------------------------------------------------------------------------------------
+//------------------------------------------重定向规则---------------------------------------------------------
     (* fire_when_enabled *)
     (* no_implicit_conditions *)
-    rule canonicalizeRedirect(csrf.started);//重定向规则 分支预测失败时触发
+    rule canonicalizeRedirect(csrf.started);//分支预测失败时触发
         if (execRedirect[1] matches tagged Valid .r) begin
             pc[1] <= r.nextPc; //将正确的下一条指令地址传给pc寄存器
             execEpoch <= !execEpoch;//同时改变epoch值 使此条错误指令销毁 同时使取指阶段取到正确的PC值
@@ -270,8 +297,8 @@ module mkProc(Proc);
         execRedirect <= Invalid;
         decRedirect  <= Invalid;
     endrule
-//----------------------------------------------------------------------------------------------------
-    rule doMemory(csrf.started); //数据内存阶段(根据指令 向内存读写数据)
+//----------------------------------数据内存阶段(根据指令, 向内存读写数据)--------------------------------------------------------------
+    rule doMemory(csrf.started); //
         let e2m = e2mFifo.first;
         e2mFifo.deq;
 
@@ -295,8 +322,8 @@ module mkProc(Proc);
         };
         m2wbFifo.enq(m2w);
     endrule
-//----------------------------------------------------------------------------------------------------
-    rule doWriteBack(csrf.started);//回写阶段(回写到寄存器数据)
+//---------------------------------------回写阶段(回写到寄存器数据)-------------------------------------------------------------
+    rule doWriteBack(csrf.started);
         let m2w = m2wbFifo.first;
         m2wbFifo.deq;
 
