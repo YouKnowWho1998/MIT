@@ -124,8 +124,8 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
     Vector#(2, WideMem) splitMem <- mkSplitWideMem(memReady && csrf.started, wideMem);
 
     //将内存接口类型(WideMem)转化成Cache接口类型 对应指令Cache和数据Cache
-    Cache iMem <- mkTranslator(splitMem[0]);
-    Cache dMem <- mkTranslator(splitMem[1]);
+    Cache iMem <- mkCache(splitMem[0]);
+    Cache dMem <- mkCache(splitMem[1]);
 //-----------------------------------------------------------------------------------------------------------------
     //为初始化时排空内存接收FIFO
     rule drainMemResponses( !csrf.started );
