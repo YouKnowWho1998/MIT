@@ -85,7 +85,7 @@ function Bool isJalrReturn(Data inst); //Return指令
     return x;
 endfunction
 
-//=========================================PROCESSOR=========================================================
+//=========================================PROCESSOR==========================================================
 
 (* synthesize *)
 module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)(Proc);
