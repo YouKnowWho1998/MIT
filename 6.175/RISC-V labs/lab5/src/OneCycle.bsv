@@ -12,7 +12,9 @@ import Fifo::*;
 import Ehr::*;
 import GetPut::*;
 
-//单周期哈佛体系处理器
+
+//================================================ Processor ==================================================================================
+
 (*synthesize*)
 module mkProc(Proc);
     Reg#(Addr)  pc   <- mkRegU;
@@ -22,14 +24,8 @@ module mkProc(Proc);
     CsrFile     csrf <- mkCsrFile;
 
     Bool memReady = iMem.init.done() && dMem.init.done();
-/*
-    rule test(!memReady);
-        let e=tagged InitDone;
-        iMem.init.request.put(e);
-        dMem.init.request.put(e);
-    endrule
-*/
 
+//---------------------------------------------------------------------------------------------------------------------------------------------
     rule doProc(csrf.started);
         Data        inst   = iMem.req(pc);
         DecodedInst dInst  = decode(inst);
@@ -38,8 +34,10 @@ module mkProc(Proc);
         Data        csrVal = csrf.rd(fromMaybe(?,dInst.csr));
         ExecInst    eInst  = exec(
             dInst,
-            rVal1,rVal2,
-            pc,?,
+            rVal1,
+            rVal2,
+            pc,
+            ?,
             csrVal
             );
 
@@ -62,23 +60,21 @@ module mkProc(Proc);
         end
 
         pc <= eInst.brTaken ? eInst.addr : pc+4;
-
         csrf.wr(eInst.iType == Csrw ? eInst.csr : Invalid, eInst.data);
-
     endrule
-
+//-------------------------------------------------------------------------------------------------------------------------------------------
     method ActionValue#(CpuToHostData) cpuToHost;
         let ret <- csrf.cpuToHost;
         return ret;
     endmethod
-
+//------------------------------------------------------------------------------------------------------------------------------------------
     method Action hostToCpu(Bit#(32) startpc) if(!csrf.started && memReady);
         csrf.start(0);
         $display("STARTING AT PC: %h", startpc);
 	    $fflush(stdout);
         pc <= startpc;
     endmethod
-
+//----------------------------------------------------------------------------------------------------------------------------------------------------
     interface iMemInit = iMem.init;
     interface dMemInit = dMem.init;
 endmodule

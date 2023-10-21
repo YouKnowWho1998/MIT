@@ -12,14 +12,15 @@ import Fifo::*;
 import Ehr::*;
 import GetPut::*;
 
-//两周期冯诺依曼结构处理器
+
 typedef enum{ //定义状态机寄存器状态枚举变量
     Fetch, 
     Execute
 } State deriving(Bits, Eq, FShow);
 
+//==================================================== Processor ======================================================================================
 (*synthesize*)
-module mkProc(Proc)
+module mkProc(Proc);
     Reg#(Addr)  pc    <- mkRegU;
     RFile       rf    <- mkRFile;
     IMemory     iMem  <- mkIMemory;
@@ -30,14 +31,14 @@ module mkProc(Proc)
 
     Bool memReady = iMem.init.done() && dMem.init.done();
 
-    rule doFetch(csrf.started && state==Fetch)
+//------------------------------------------------ 取指令 ---------------------------------------------------------------------------
+    rule doFetch(csrf.started && state==Fetch);
         let inst = iMem.req(pc);
-        f2d <= Execute;
-        f2d <= inst;
+        state <= Execute;
+        f2d   <= inst;
     endrule
-
-
-    rule doExecute(csrf.started && state==Execute)
+//------------------------------------------------ 执行 -------------------------------------------------------------------------------
+    rule doExecute(csrf.started && state==Execute);
         let inst = f2d;
         DecodedInst dInst  = decode(inst);
         Data        rVal1  = rf.rd1(fromMaybe(?,dInst.src1));
@@ -49,7 +50,6 @@ module mkProc(Proc)
             pc,?,
             csrVal
             );
-
         $display("pc:%h inst:(%h) expanded: ",pc,inst,showInst(inst));
         $fflush(stdout);
         
@@ -69,25 +69,22 @@ module mkProc(Proc)
         end
 
         pc <= eInst.brTaken ? eInst.addr : pc+4;
-
         csrf.wr(eInst.iType == Csrw ? eInst.csr : Invalid, eInst.data);
-
         state <= Fetch;
-
     endrule
-
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
     method ActionValue#(CpuToHostData) cpuToHost;
         let ret <- csrf.cpuToHost;
         return ret;
     endmethod
-
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
     method Action hostToCpu(Bit#(32) startpc) if(!csrf.started && memReady);
         csrf.start(0);
         $display("STARTING AT PC: %h", startpc);
 	    $fflush(stdout);
         pc <= startpc;
     endmethod
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
     interface iMemInit = iMem.init;
     interface dMemInit = dMem.init;
 
