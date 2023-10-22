@@ -138,7 +138,7 @@ module mkCache(WideMem mem, Cache ifc);
         if (missReq.op == Ld) begin 
             dirtyArray[idx]	<= False;//Dirty位变低电平(clean) 代表CPU没有读写过 是内存数据的副本
             dataArray[idx]	<= data; //如果未命中指令是Load指令 则将data写入对应的Cache块中 
-            hitF.enq(data[offset]);   //Cache已经更新 可以输出命中的数据
+            hitF.enq(data[offset]);  //Cache已经更新 可以输出命中的数据
         end    
         else begin
             //如果不是load命令 则选中data[offset]接收内存传输的数据
@@ -172,6 +172,7 @@ module mkCache(WideMem mem, Cache ifc);
 			missReq <= r; //如果没有命中 则进入StartMiss状态 
 			state   <= StartMiss;
 		end
+    endmethod
 //---------------------------------------------------------------------------------------------------------
     method ActionValue#(Data) resp;
         hitF.deq;

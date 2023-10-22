@@ -88,22 +88,20 @@ endfunction
 //=========================================PROCESSOR==========================================================
 
 (* synthesize *)
-module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)(Proc);
+module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo) (Proc);
     Ehr#(2, Addr)      pc   <- mkEhrU;
     RFile              rf   <- mkRFile;
     Scoreboard#(10)    sb   <- mkCFScoreboard;
-    FPGAMemory         iMem <- mkFPGAMemory;
-    FPGAMemory         dMem <- mkFPGAMemory;
     CsrFile            csrf <- mkCsrFile;
     Btb#(6)            btb  <- mkBtb;
     Bht#(8)            bht  <- mkBht;
     Ras#(3)            ras  <- mkRas;
 
-    FIFO#(2, Fetch2Decode)      f2dFifo  <- mkCFFifo;
-    FIFO#(2, Decode2Register)   d2rFifo  <- mkCFFifo;
-    FIFO#(2, Register2Execute)  r2eFifo  <- mkCFFifo;
-    FIFO#(2, Execute2Memory)    e2mFifo  <- mkCFFifo;
-    FIFO#(2, Memory2WriteBack)  m2wbFifo <- mkCFFifo;
+    Fifo#(2, Fetch2Decode)      f2dFifo  <- mkCFFifo;
+    Fifo#(2, Decode2Register)   d2rFifo  <- mkCFFifo;
+    Fifo#(2, Register2Execute)  r2eFifo  <- mkCFFifo;
+    Fifo#(2, Execute2Memory)    e2mFifo  <- mkCFFifo;
+    Fifo#(2, Memory2WriteBack)  m2wbFifo <- mkCFFifo;
 
     Reg#(Bool) execEpoch <- mkReg(False);
     Reg#(Bool) decEpoch  <- mkReg(False);
@@ -128,15 +126,15 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
     Cache dMem <- mkCache(splitMem[1]);
 //-----------------------------------------------------------------------------------------------------------------
     //为初始化时排空内存接收FIFO
-    rule drainMemResponses( !csrf.started );
+    rule drainMemResponses(!csrf.started);
         $display("drain!");
         ddr3RespFifo.deq;
     endrule
 //----------------------------------------取指令阶段--------------------------------------------------------------
-    rule doFetch(csrf.started)
+    rule doFetch(csrf.started);
         iMem.req(MemReq{op:?, addr:pc[0], data:?});//向指令缓存发出读请求
         Addr ppc = btb.predPc(pc[0]);
-        Fetch2Decode f2d = {
+        Fetch2Decode f2d = Fetch2Decode{
             pc : pc[0],
             ppc : ppc,
             exeEpoch: execEpoch,
@@ -147,7 +145,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
         $display("Request instruction: PC = %x, next PC = %x", pc[0], ppc);
     endrule
 //----------------------------------------指令解码阶段------------------------------------------------------------
-    rule doDecode(csrf.started)
+    rule doDecode(csrf.started);
         let f2d = f2dFifo.first;
         f2dFifo.deq;
 
@@ -160,7 +158,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
             if (dInst.iType == Br) begin
                 let bhtPred = bht.predPc(f2d.pc, f2d.ppc);
                 if (bhtPred != f2d.ppc) begin
-                    decRedirect[0] <= tagged valid DecodeRedirect{nextPc : bhtPred};
+                    decRedirect[0] <= tagged Valid DecodeRedirect{nextPc : bhtPred};
                     f2d.ppc = bhtPred;
                 end
             end
@@ -178,14 +176,12 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
                 //需要重定向指令
                 if (isJalrReturn(inst)) begin
                     Addr x <- ras.pop();
-                    decRedirect[0] <= tagged valid DecodeRedirect{
-                        nextPc : x
-                    };
+                    decRedirect[0] <= tagged Valid DecodeRedirect{nextPc : x};
                     f2d.ppc = x;
                 end
             end
 
-            Decode2Register d2r = {
+            Decode2Register d2r = Decode2Register{
                 pc : f2d.pc,
                 ppc : f2d.ppc,
                 exeEpoch : f2d.exeEpoch,
@@ -198,7 +194,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
         end
     endrule
 //---------------------------------------读取寄存器数据阶段-------------------------------------------------------------
-    rule doRegister(csrf.started)
+    rule doRegister(csrf.started);
         let d2r = d2rFifo.first;
         let dInst = d2r.dInst;
         //d2rFifo.deq; 这样写不对 要先查询scoreboard之后才能弹出d2rFifo数据 否则就要等待
@@ -208,19 +204,19 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
         Data   csrVal = csrf.rd(fromMaybe(?, dInst.csr));
 
         //查询scoreboard 看之前指令有无记录要写入的寄存器 排除数据冒险
-        let noDataHazard1 = !sb.search1(fromMaybe(?, dInst.src1));
-        let noDataHazard2 = !sb.search2(fromMaybe(?, dInst.src2));
+        let noDataHazard1 = !sb.search1(dInst.src1);
+        let noDataHazard2 = !sb.search2(dInst.src2);
         if(noDataHazard1 && noDataHazard2) begin
             d2rFifo.deq;//此时才可弹出数据
-            sb.insert(fromMaybe(?, dInst.dst));//向scoreboard输入此次指令要写入的寄存器地址
-            Register2Execute r2e = {
+            sb.insert(dInst.dst);//向scoreboard输入此次指令要写入的寄存器地址
+            Register2Execute r2e = Register2Execute{
                 pc : d2r.pc,
                 ppc : d2r.ppc,
-                epoch : d2r.exeEpoch,
+                exeEpoch : d2r.exeEpoch,
                 dInst : dInst,
                 rVal1 : rVal1,
                 rVal2 : rVal2,
-                csrVal : csrVal,
+                csrVal : csrVal
             };
             r2eFifo.enq(r2e);
             $display("Read registers: PC = %x", d2r.pc);
@@ -237,7 +233,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
         //检测epoch状态是否上级下级一致 如果不一致则销毁此条指令
         //如果分支预测失败，将触发重定向规则销毁此条指令，改变epoch状态，这里将会立刻触发
         Maybe#(ExecInst) eInst;
-        if(r2e.epoch != execEpoch) begin
+        if(r2e.exeEpoch != execEpoch) begin
             eInst = tagged Invalid;
         end
         else begin
@@ -250,16 +246,16 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
                 r2e.ppc
             );
             eInst = tagged Valid e;
-            if(eInst.mispredict) begin
+            if(e.mispredict) begin
                 $display("MisPredict!");
                 $fflush(stdout);
-                Bool jump = ((eInst.iType == J) || (eInst.iType == Jr) || (eInst.iType == Br));
-                let realNextPc = jump ? eInst.addr : r2e.pc+4;
+                Bool jump = ((e.iType == J) || (e.iType == Jr) || (e.iType == Br));
+                let realNextPc = jump ? e.addr : r2e.pc+4;
                 //出现了分支预测失败 则触发重定向规则 改变epoch值 设定为wrong path 
                 //同时将下一条指令的正确地址发给pc寄存器
                 execRedirect[0] <= tagged Valid ExecuteRedirect{
-                    pc : r2e.pc;
-                    nextPc : realNextPc;
+                    pc : r2e.pc,
+                    nextPc : realNextPc
                 };
             end
             else begin
@@ -273,9 +269,9 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
             end
         end
 
-        Execute2Memory e2m = {
+        Execute2Memory e2m = Execute2Memory{
             pc : r2e.pc,
-            eInst : eInst,
+            eInst : eInst
         };
         e2mFifo.enq(e2m);
     endrule
@@ -294,8 +290,8 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
             decEpoch <= !decEpoch;
             $display("Fetch: Mispredict, redirected by Decode");
         end
-        execRedirect <= Invalid;
-        decRedirect  <= Invalid;
+        execRedirect[1] <= Invalid;
+        decRedirect[1]  <= Invalid;
     endrule
 //----------------------------------数据内存阶段(根据指令, 向内存读写数据)--------------------------------------------------------------
     rule doMemory(csrf.started); //
@@ -305,10 +301,10 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
         if (isValid(e2m.eInst)) begin
             let x = fromMaybe(?, e2m.eInst);
             if(x.iType == Ld) begin
-                dMem.rep(MemReq{op:Ld, addr:x.addr, data:?});
+                dMem.req(MemReq{op:Ld, addr:x.addr, data:?});
             end
             else if(x.iType == St) begin
-                let dummy <- dMem.rep(MemReq{op:St, addr:x.addr, data:x.data});
+                let dummy <- dMem.req(MemReq{op:St, addr:x.addr, data:x.data});
             end
         end
         else begin
@@ -316,9 +312,9 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
             $fflush(stdout);
         end
 
-        Memory2WriteBack m2w = {
+        Memory2WriteBack m2w = Memory2WriteBack{
             pc : e2m.pc,
-            eInst : e2m.eInst,
+            eInst : e2m.eInst
         };
         m2wbFifo.enq(m2w);
     endrule
@@ -333,7 +329,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
                 x.data <- dMem.resp();
             end
             if(isValid(x.dst)) begin
-                rd.wr(fromMaybe(?, x.dst), x.data);
+                rf.wr(fromMaybe(?, x.dst), x.data);
             end
             csrf.wr((x.iType == Csrw) ? x.csr : Invalid, x.data);
             $display("WriteBack stage of poisoned instruction");
@@ -350,16 +346,14 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
     let ret <- csrf.cpuToHost;
     return ret;
     endmethod
-
-
+//----------------------------------------------------------------------------------------------------
     method Action hostToCpu(Bit#(32) startpc) if(!csrf.started && memReady);
     csrf.start(0);
     $display("STARTING AT PC: %h", startpc);
     $fflush(stdout);
-    pcReg[0] <= startpc;
+    pc[0] <= startpc;
     endmethod
-
-    interface iMemInit=iMem.init;
-    interface dMemInit=dMem.init;
-
+//----------------------------------------------------------------------------------------------------
+    interface iMemInit = iMem.init;
+    interface dMemInit = dMem.init;
 endmodule
