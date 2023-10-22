@@ -10,7 +10,7 @@ endinterface
 
 //==============================================================================================================
 
-module mkBht(Bht#(bhtIndex));
+module mkBht(Bht#(bhtIndex))
     //bhtIndex的值小于32(取PC值的一部分), 同时bhtEntries的数量是2 ^ bhtIndex
     provisos(Add#(bhtIndex, a__, 32), NumAlias#(TExp#(bhtIndex), bhtEntries));
 
@@ -34,15 +34,9 @@ module mkBht(Bht#(bhtIndex));
     //extractDir
     //dpBits为2'b11和2'b10时为跳转状态 否则为不跳转状态
     function Bool extractDir(Bit#(2) dpBits);
-        Bool stronglyTaken = (dpBits == 2'b11);
-        Bool weaklyTaken   = (dpBits == 2'b10);
-        if(stronglyTaken || weaklyTaken) begin
-            Bool Taken = True;
-        end
-        else begin
-            Bool Taken = False;
-        end
-        return Taken;
+        Bool stronglyTaken = (dpBits == 2'b11) ? True : False;
+        Bool weaklyTaken   = (dpBits == 2'b10) ? True : False;
+        return (stronglyTaken || weaklyTaken);
     endfunction
 
     //computeTarget
