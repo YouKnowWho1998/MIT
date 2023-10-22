@@ -96,7 +96,7 @@ module mkProc(Proc);
                 rf.wr(fromMaybe(?,eInst.dst),eInst.data);
             end
             pc <= eInst.brTaken ? eInst.addr : pc+4;
-            csrf.wr(eInst.iType == Csrw ? eInst.csr : Invalid, eInst.data);
+            csrf.wr(eInst.iType == Csrrw ? eInst.csr : Invalid, eInst.csrData);
         end
     endrule
 //--------------------------------------------------------------------------------------------------------------------------
