@@ -272,7 +272,6 @@ module mkProc(Proc);
                 rf.wr(fromMaybe(?, x.dst), x.data);
             end
             csrf.wr((x.iType == Csrw) ? x.csr : Invalid, x.data);
-            $display("WriteBack stage of poisoned instruction");
         end
         else begin
             $display("WriteBack stage of poisoned instruction");

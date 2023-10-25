@@ -332,7 +332,6 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
                 rf.wr(fromMaybe(?, x.dst), x.data);
             end
             csrf.wr((x.iType == Csrw) ? x.csr : Invalid, x.data);
-            $display("WriteBack stage of poisoned instruction");
         end
         else begin
             $display("WriteBack stage of poisoned instruction");
