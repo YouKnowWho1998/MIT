@@ -26,7 +26,7 @@ typedef enum{//定义Cache状态机变量
 } CacheStatus deriving (Bits,Eq);
 
 
-module mkICache(WideMem mem, Cache ifc);
+module mkICache(WideMem mem, ICache ifc);
     
     //一个cache块由data部分, tag部分, dirty部分组成, 多个cache块组成SRAM
     Vector#(CacheRows, Reg#(CacheLine))        dataArray   <- replicateM(mkRegU);//例化data部分阵列
@@ -59,15 +59,15 @@ module mkICache(WideMem mem, Cache ifc);
     function CacheWordSelect getOffset(Addr addr) = truncate(addr >> 2);
     
     //截取Tag片段
-    function CacheTag getTag(Addr addr) = truncateLSB(addr)
+    function CacheTag getTag(Addr addr) = truncateLSB(addr);
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-    rule sendFillReq (state == StartMiss); 
+    rule sendFillReq(state == StartMiss);
         //如果是指令未命中 向内存请求更新未命中指令
         memReqQ.enq(MemReq{op: Ld, addr: missAddr, data:?});
-        status <= WaitFillResp;
+        state <= WaitFillResp;
     endrule
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-    rule waitFillResp (status == WaitFillResp);
+    rule waitFillResp(state == WaitFillResp);
         //获取未命中指令的tag index sel(offset)
         CacheWordSelect sel = getOffset(missAddr);
         CacheIndex idx = getIndex(missAddr);
@@ -115,24 +115,21 @@ module mkICache(WideMem mem, Cache ifc);
         memRespQ.enq(line);
     endrule
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-    method Action req(Addr a) if(status == Ready);
+    method Action req(Addr a) if(state == Ready);
         //正常指令命中情况下的流程
         CacheWordSelect sel = getOffset(a);
         CacheIndex idx = getIndex(a);
         CacheTag tag = getTag(a);
 
         //当传入Cache的指令index选中的Cache块Tag位是Valid时 表示命中
-        Bool hit = (tagArray[idx] matches tagged Valid .currTag 
-                    &&& (currTag == tag)) ? True : False;
-
         //命中立刻根据idx和sel(offset)选中具体的字传入处理器中
-        if (hit) begin
+        if (tagArray[idx] matches tagged Valid .currTag &&& currTag == tag) begin
             hitQ.enq(dataArray[idx][sel]);
         end
         //如果没有命中则切换至"未命中指令"流程
         else begin
             missAddr <= a;
-            status <= StartMiss;
+            state <= StartMiss;
         end
     endmethod
 //-------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -79,8 +79,8 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
 
     Reg#(Bool) execEpoch <- mkReg(False);
     Reg#(Bool) decEpoch  <- mkReg(False);
-    Ehr#(2, Maybe#(ExecuteRedirect)) execRedirect <- mkEhr(Invalid);
-    Ehr#(2, Maybe#(DecodeRedirect))  decRedirect  <- mkEhr(Invalid);
+    Ehr#(2, Maybe#(Redirect)) execRedirect <- mkEhr(Invalid);
+    Ehr#(2, Maybe#(Redirect))  decRedirect  <- mkEhr(Invalid);
 
     Bool memReady = True;
 
@@ -96,8 +96,8 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
     Vector#(2, WideMem) splitMem <- mkSplitWideMem(memReady && csrf.started, wideMem);
 
     //将内存接口类型(WideMem)转化成Cache接口类型 对应指令Cache和数据Cache
-    Cache iMem <- mkICache(splitMem[0]);
-    Cache dMem <- mkDCacheLHUSM(splitMem[1]);
+    ICache iMem <- mkICache(splitMem[0]);
+    DCache dMem <- mkDCacheLHUSM(splitMem[1]);
     // Cache dMem <- mkDCacheStQ(splitMem[1]);
     // Cache dMem <- mkDCache(splitMem[1]);
 //-----------------------------------------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
 
                 //如果bht_ppc与f2d.不一样 则指令需要重定向 并将bht_ppc值设定为准确的预测地址
                 if (bht_ppc != f2d.ppc) begin
-                    DecodeRedirect[0] <= tagged Valid Redirect{
+                    decRedirect[0] <= tagged Valid Redirect{
                         pc : f2d.pc,
                         nextPc : bht_ppc
                     };
@@ -234,7 +234,7 @@ module mkProc#(Fifo#(2, DDR3_Req) ddr3ReqFifo, Fifo#(2, DDR3_Resp) ddr3RespFifo)
             end
         end
 
-        Execute2Memory e2m = Execute2WriteBack{
+        Execute2WriteBack e2m = Execute2WriteBack{
             pc : r2e.pc,
             ppc : r2e.ppc,
             eInst : eInst
