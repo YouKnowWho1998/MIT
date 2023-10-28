@@ -47,9 +47,9 @@ module mkMessageFifo(MessageFifo#(n));
 //--------------------------------------------------------------------------------------------------------------------------------
     //hasResp和hasReq是用来指示resp_fifo和req_fifo是否有数据的标识位
     //notEmpty是两个标识位的或
-    method Bool hasResp = resp_fifo.notEmpty; endmethod
-    method Bool hasReq  = req_fifo.notEmpty; endmethod
-    method Bool notEmpty = (resp_fifo.notEmpty || req_fifo.notEmpty); endmethod
+    method Bool hasResp = resp_fifo.notEmpty; 
+    method Bool hasReq  = req_fifo.notEmpty; 
+    method Bool notEmpty = (resp_fifo.notEmpty || req_fifo.notEmpty); 
 //--------------------------------------------------------------------------------------------------------------------------------
     //如果resp_fifo有数据则输出它 如req_fifo有数据则输出它
     method CacheMemMessage first; 
