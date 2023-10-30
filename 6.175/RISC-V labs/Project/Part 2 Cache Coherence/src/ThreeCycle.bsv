@@ -49,12 +49,26 @@ module mkCore#(CoreID id)(
 	MessageFifo#(2) fromParentQ <- mkMessageFifo;
 
     //数据缓存
-    DCache dCache <- mkDCache(
-                id,
-                toMessageGet(fromParentQ),
-                toMessagePut(toParentQ),
-                refDMem
-            );
+    DCache dCache <- mkDCacheLHUSM(
+        id,
+        toMessageGet(fromParentQ),
+        toMessagePut(toParentQ),
+        refDMem
+    );
+
+    // DCache dCache <- mkDCacheStQ(
+    //     id,
+    //     toMessageGet(fromParentQ),
+    //     toMessagePut(toParentQ),
+    //     refDMem
+    // );
+
+    // DCache dCache <- mkDCache(
+    //             id,
+    //             toMessageGet(fromParentQ),
+    //             toMessagePut(toParentQ),
+    //             refDMem
+    //         );
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     rule doFetch(csrf.started && stage == Fetch);

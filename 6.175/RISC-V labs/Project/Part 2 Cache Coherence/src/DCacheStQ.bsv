@@ -45,7 +45,7 @@ typedef enum {//Cache状态机变量
 //   method ActionValue#(MemResp) resp;
 // endinterface
 
-module mkDCache#(CoreID id)(
+module mkDCacheStQ#(CoreID id)(
     MessageGet fromMem,//Router -> Cache
     MessagePut toMem,//Cache -> Router
     RefDMem    refDMem,//用于调试
@@ -146,7 +146,7 @@ module mkDCache#(CoreID id)(
         end
     endrule
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    rule doFence (status == Ready && reqQ.first.op == Fence && !stq.notEmpty);
+    rule doFence (state == Ready && reqQ.first.op == Fence && !stq.notEmpty);
     //当请求指令是Fence时触发
         reqQ.deq;
         refDMem.commit(reqQ.first, Invalid, Invalid);
@@ -218,6 +218,7 @@ module mkDCache#(CoreID id)(
             let old_line = isValid(x.data) ? fromMaybe(?, x.data) : dataArray[idx];
             refDMem.commit(missReq, Valid(old_line), Invalid);
             line[sel] = missReq.data;
+            stq.deq;
         end
         else if (missReq.op == Sc) begin
 
@@ -262,10 +263,7 @@ module mkDCache#(CoreID id)(
     endrule
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
     rule dng (state != Resp);
-        CacheMemReq x = ?;
-        case (fromMem.first) matches
-            tagged Req .req : x = req;
-        endcase
+        CacheMemReq x = fromMem.first.Req;
 
         CacheWordSelect sel = getWordSelect(x.addr);
         CacheIndex idx = getIndex(x.addr);
@@ -296,6 +294,32 @@ module mkDCache#(CoreID id)(
         end
 
         fromMem.deq;
+    endrule
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    rule stqToCache (state == Ready && (!reqQ.notEmpty || reqQ.first.op != Ld));
+        MemReq r <- stq.issue;
+
+        CacheWordSelect sel = getWordSelect(r.addr);
+        CacheIndex idx = getIndex(r.addr);
+        CacheTag tag = getTag(r.addr);
+
+        if (tagArray[idx] == tag && privArray[idx] > I) begin
+            if (privArray[idx] == M) begin
+                dataArray[idx][sel] <= r.data;
+                refDMem.commit(r, Valid(dataArray[idx]), Invalid);
+                stq.deq;
+                if (linkAddr matches tagged Valid .la &&& la == getLineAddr(r.addr))
+                    linkAddr <= Invalid;
+            end
+            else begin
+                missReq <= r;
+                state <= SendFillReq;
+            end
+        end
+        else begin
+            missReq <= r;
+            state <= StartMiss;
+        end
     endrule
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
     method Action req(MemReq r);

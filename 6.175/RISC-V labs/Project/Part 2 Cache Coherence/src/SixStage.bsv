@@ -87,12 +87,26 @@ module mkCore(
     MessageFifo#(2) fromParentQ <- mkMessageFifo;
 
     //数据缓存
-    DCache dCache <- mkDCache(
+    DCache dCache <- mkDCacheLHUSM(
         id,
         toMessageGet(fromParentQ),
         toMessagePut(toParentQ),
         refDMem
     );
+
+    // DCache dCache <- mkDCacheStQ(
+    //     id,
+    //     toMessageGet(fromParentQ),
+    //     toMessagePut(toParentQ),
+    //     refDMem
+    // );
+
+    // DCache dCache <- mkDCache(
+    //     id,
+    //     toMessageGet(fromParentQ),
+    //     toMessagePut(toParentQ),
+    //     refDMem
+    // );
 
     // mem req id
     MemReqIDGen memReqIDGen <- mkMemReqIDGen;
@@ -300,7 +314,7 @@ module mkCore(
             $display("Memory stage of poisoned instruction");
             $fflush(stdout);
         end
-
+    end
         m2wbFifo.enq(e2m);
     endrule
 //---------------------------------------回写阶段(回写到寄存器数据)-------------------------------------------------------------

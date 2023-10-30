@@ -1,8 +1,8 @@
 import Vector::*;
 import FShow::*;
 import MemTypes::*;
-imimport CacheTypes::*;
-port Types::*;
+import CacheTypes::*;
+import Types::*;
 import ProcTypes::*;
 import Fifo::*;
 import Ehr::*;
