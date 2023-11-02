@@ -1,59 +1,37 @@
-module pipe
+module pipe_valid
 (
     input wire        sys_clk   ,
+    input wire        rst_n     ,
     input wire        valid_up  ,
     input wire [2:0]  data_up   ,
-    input wire        ready_down,
+    input wire        ready_middle,
 
-    output reg        ready_up  ,
-    output wire       valid_down,
-    output wire [2:0] data_down 
+    output wire       ready_up  ,
+    output reg        valid_middle,
+    output reg [2:0]  data_middle 
 );
 
-//=============================================================================================================
 
-reg [2:0] buf_data; 
-wire      buf_valid; //skid buffer design
-
-/*
-reg [2:0] fifo_data;
-reg       fifo_data_valid;*/
-
-//=============================================================================================================
-
-//buf_valid 当前级输入数据 后级不输出数据时将这个数据寄存到Buffer中
-assign buf_valid = ready_up && ~ready_down ;
-
-
-//buf_data
-always @(posedge sys_clk) begin
-    buf_data = 'd0;
-    if(buf_valid)
-        buf_data <= data_up;
-    else if(ready_down) //后级要输出数据 将buffer中的数据输出 清空buffer
-        buf_data <= 'd0;
-    else
-        buf_data <= buf_data;
-end
-
-
-//data_down 当前级不输入数据 后级要输出数据时将、Buffer中寄存的数据输出 之后恢复正常
-assign data_down = ((!ready_up && ready_down) || (ready_up && valid_up)) ? buf_data : data_up;
-
-
-//ready_up
-always @(posedge sys_clk) begin
-    ready_up <= ready_down || ~valid_down;
-end
-
-
-//valid_down
+//valid_middle
 always@(posedge sys_clk or negedge rst_n) begin
     if(!rst_n)
-        valid_down <= 1'b0;
+        valid_middle <= 1'b0;
     else
-        valid_down <= ready_up ? (valid_up || buf_valid) : valid_down;
+        valid_middle <= ready_up ? valid_up : valid_middle;
 end
+
+
+//data_middle
+always@(posedge sys_clk or negedge rst_n) begin
+    if(!rst_n)
+        data_middle <= 'd0;
+    else
+        data_middle <= (ready_up && valid_up) ? data_up : data_middle;
+end
+
+//ready_up
+assign ready_up = ready_middle || ~valid_middle;
+
 
 
 /*//fifo_design depth-1
@@ -65,7 +43,7 @@ always @(posedge sys_clk) begin
     if(ready_up && valid_up) begin //当fifo允许传入数据时 fifo传入数据并将其标志信号拉高
         fifo_data_valid <= valid_up;
         fifo_data <= data_up;
-    end else if(valid_down && ready_down) begin //当fifo不允许传入数据而允许传出数据时 fifo数据向后级传出
+    end else if(valid_middle && ready_down) begin //当fifo不允许传入数据而允许传出数据时 fifo数据向后级传出
         fifo_data_valid <= 1'b0;                 //并将其标志信号拉低 代表fifo内部排空了数据
         fifo_data <= 3'd0;
     end else begin
@@ -83,9 +61,9 @@ end
 // 可以拉高ready信号一周期 将空FIFO利用起来存入一个数据
 
 
-assign data_down = fifo_data;
+assign data_middle = fifo_data;
 
-assign valid_down = fifo_data_valid;
+assign valid_middle = fifo_data_valid;
 
 *///=============================================================================================================
 /* 思考：
