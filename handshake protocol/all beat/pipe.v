@@ -22,7 +22,7 @@ reg       fifo_data_valid;*/
 //=============================================================================================================
 
 //buf_valid 当前级输入数据 后级不输出数据时将这个数据寄存到Buffer中
-assign buf_valid = ready_up && ~ready_down;
+assign buf_valid = ready_up && ~ready_down ;
 
 
 //buf_data
