@@ -6,15 +6,36 @@ import MessageFifo::*;
 import Vector::*;
 import FShow::*;
 
+// cache <-> mem message
+// typedef struct{
+//     CoreID            child; 
+//     Addr              addr;
+//     MSI               state;
+//     Maybe#(CacheLine) data;
+// } CacheMemResp deriving(Eq, Bits, FShow);
+
+// typedef struct{
+//     CoreID      child;
+//     Addr        addr;
+//     MSI         state;
+// } CacheMemReq deriving(Eq, Bits, FShow);
+
+// typedef union tagged { //标签联合体
+//     CacheMemReq     Req;
+//     CacheMemResp    Resp;
+// } CacheMemMessage deriving(Eq, Bits, FShow);
+
 //================================================================================================================================================================
 module mkPPP(MessageGet c2m, MessagePut m2c, WideMem mem, Empty ifc);
+    //对应各个核心的MSI状态，Tag位信息
     Vector#(CoreNum, Vector#(CacheRows, Reg#(MSI)))      childState <- replicateM(replicateM(mkReg(I)));
-    Vector#(CoreNum, Vector#(CacheRows, Reg#(CacheTag))) childTag <- replicateM(replicateM(mkRegU));
-    Vector#(CoreNum, Vector#(CacheRows, Reg#(Bool)))     waitc <- replicateM(replicateM(mkReg(False)));
+    Vector#(CoreNum, Vector#(CacheRows, Reg#(CacheTag))) childTag   <- replicateM(replicateM(mkRegU));
+    Vector#(CoreNum, Vector#(CacheRows, Reg#(Bool)))     waitc      <- replicateM(replicateM(mkReg(False)));
 
     Reg#(Bool) missReg  <- mkReg(False);
     Reg#(Bool) readyReg <- mkReg(False);
 
+    //当a,b其中之一为I状态 或者 a,b均为S状态时 为True
     function Bool isCompatible(MSI a, MSI b) = ((a == I || b == I) || (a == S && b == S));
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -27,7 +48,8 @@ module mkPPP(MessageGet c2m, MessagePut m2c, WideMem mem, Empty ifc);
         Bool safe = True;
         for (Integer i = 0; i < valueOf(CoreNum); i = i + 1) begin
             if (fromInteger(i) != c) begin
-                MSI s = (childTag[i][idx] == tag)? childState[i][idx] : I;
+                //如果父级子级tag一致 则赋值给对应的state 反之为I状态
+                MSI s = (childTag[i][idx] == tag) ? childState[i][idx] : I;
                 if (!isCompatible(s, req.state) || waitc[c][idx]) begin
                     safe = False;
                 end
@@ -53,7 +75,8 @@ module mkPPP(MessageGet c2m, MessagePut m2c, WideMem mem, Empty ifc);
                 mem.req(WideMemReq{
                         write_en: '0,
                         addr: req.addr,
-                        data: ? } );
+                        data: ? 
+                        });
                 missReg  <= True;
                 readyReg <= False;
             end

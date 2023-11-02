@@ -31,7 +31,7 @@ typedef enum {//定义处理器阶段状态机
 module mkCore#(CoreID id)(
 	WideMem iMem,    //指令缓存
 	RefDMem refDMem, //用于Debug
-	Core ifc        //接口
+	Core ifc         //接口
 );
 
     Reg#(Addr)          pc  <- mkRegU;
