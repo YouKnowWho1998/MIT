@@ -22,7 +22,7 @@ endfunction
 function Bit#(32) barrelshiftright(Bit#(32) in, Bit#(5) shiftBy);
     Vector#(6, Bit#(32)) out;
     out[0] = in;
-    for(Integer i = 0, i < 5, i = i + 1) begin
+    for(Integer i = 0; i < 5; i = i + 1) begin
         out[i + 1] = shiftright (shiftBy[i], out[i], i);
     end
     return out[5]; 
